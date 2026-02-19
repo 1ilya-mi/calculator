@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Калькулятор доставки плитки</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Open Sans','Helvetica Neue',Arial,sans-serif;background:#f5f7f8;color:#333;line-height:1.5;padding:16px;min-height:100vh}
+        .container{max-width:800px;margin:0 auto}
+        .header{background:#fff;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:20px 24px 0;margin-bottom:12px}
+        .header h1{font-size:20px;font-weight:700;color:#333;margin-bottom:4px}
+        .header .sub{font-size:13px;color:#959ca4;margin-bottom:16px}
+        .tabs{display:flex}
+        .tab-btn{flex:1;padding:10px 4px;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#959ca4;cursor:pointer;transition:color .2s;border-bottom:2px solid transparent;text-align:center}
+        .tab-btn:hover{color:#525c69}
+        .tab-btn.active{color:#2fc6f6;border-bottom-color:#2fc6f6}
+        .card{background:#fff;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:24px;margin-bottom:12px}
+        .fg{margin-bottom:16px}
+        .fg label.l{display:block;font-size:13px;font-weight:600;color:#525c69;margin-bottom:6px}
+        .fg input[type="number"],.fg select{width:100%;padding:10px 12px;border:1px solid #e0e2e4;border-radius:4px;font-family:inherit;font-size:14px;color:#333;transition:border-color .2s;background:#fff}
+        .fg input:focus,.fg select:focus{outline:none;border-color:#2fc6f6}
+        .hint{font-size:12px;color:#959ca4;margin-top:4px}
+        .rr{display:flex;gap:16px;flex-wrap:wrap}
+        .ro{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;color:#525c69}
+        .ro input[type="radio"]{accent-color:#2fc6f6;width:16px;height:16px;cursor:pointer}
+        .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 24px;border:none;border-radius:4px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s}
+        .btn:active{transform:scale(.98)}
+        .btn-calc{background:#bbed21;color:#525c69;width:100%;padding:12px;font-size:15px}
+        .btn-calc:hover{opacity:.9}
+        .btn-copy{background:#2fc6f6;color:#fff;padding:8px 18px;font-size:13px;white-space:nowrap}
+        .btn-copy:hover{opacity:.85}
+        .results{display:none;margin-top:20px}
+        .results.visible{display:block}
+        .rs{margin-bottom:16px}
+        .rs h3{font-size:13px;font-weight:700;color:#2fc6f6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #f0f2f4}
+        .rw{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+        .rw .lb{color:#959ca4}.rw .vl{font-weight:600;color:#333}
+        .summary{background:#f0f8ff;border-radius:4px;padding:16px;margin-top:16px;display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px}
+        .summary .it .nm{font-size:22px;font-weight:700;color:#333}
+        .summary .it .ds{font-size:11px;color:#959ca4;margin-top:2px}
+        .tkb{margin-top:20px;background:#e8f4fd;border:1px solid #c4e2f2;border-radius:4px;padding:16px}
+        .tkb h3{font-size:13px;font-weight:700;color:#525c69;margin-bottom:10px}
+        .tk-wrap{display:flex;gap:8px;align-items:flex-start}
+        .tk-txt{flex:1;background:#fff;border:1px solid #d0dfe8;border-radius:4px;padding:10px 12px;font-family:'Consolas','Courier New',monospace;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;word-break:break-all;min-height:40px;cursor:text;-webkit-user-select:all;user-select:all}
+        .toast{position:fixed;bottom:24px;right:24px;background:#9dce35;color:#fff;padding:10px 20px;border-radius:4px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.15);transform:translateY(80px);opacity:0;transition:all .3s ease;z-index:999}
+        .toast.show{transform:translateY(0);opacity:1}
+        .wh{text-align:center;font-size:12px;color:#959ca4;margin-top:8px;padding:8px}
+        .wh strong{color:#525c69}
+        .warn{background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:10px 14px;font-size:13px;color:#8d6e00;margin-bottom:12px;display:none}
+        .warn.vis{display:block}
+        .pd{background:#fafbfc;border:1px solid #eef0f2;border-radius:4px;padding:10px 14px;margin-bottom:8px;font-size:13px}
+        .pd strong{color:#525c69}
+        .dual{display:flex;gap:12px}
+        .dual .fg{flex:1}
+        @media(max-width:600px){body{padding:8px}.card{padding:16px}.tab-btn{font-size:11px;padding:8px 2px}.summary{flex-direction:column;gap:12px}.tk-wrap{flex-direction:column}.btn-copy{width:100%}.dual{flex-direction:column;gap:0}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Калькулятор доставки</h1>
+        <p class="sub" id="hSub">Расчёт габаритов и веса груза для транспортной компании</p>
+        <div class="tabs" id="tabsBar">
+            <button class="tab-btn active" onclick="switchTab('mini')">Mini</button>
+            <button class="tab-btn" onclick="switchTab('max')">MAX</button>
+            <button class="tab-btn" onclick="switchTab('standart')">Standart</button>
+            <button class="tab-btn" onclick="switchTab('street')">Street</button>
+            <button class="tab-btn" onclick="switchTab('premium')">Premium</button>
+        </div>
+    </div>
+
+    <!-- MINI -->
+    <div class="card tab-panel" id="panel-mini">
+        <div class="fg"><label class="l">Площадь помещения (м²)</label>
+            <input type="number" id="mini-area" placeholder="Например: 27" step="0.1" min="0.1">
+            <div class="hint" id="mini-hint"></div></div>
+        <div class="fg"><label class="l">Количество пачек для доставки</label>
+            <input type="number" id="mini-packs" placeholder="Кол-во пачек" step="1" min="1">
+            <div class="hint">1 пачка = 0,963 м² (17 шт) · 5,61 кг · Макс 10 рядов/паллет = 120 пачек</div></div>
+        <button class="btn btn-calc" onclick="calcMM('mini')">Рассчитать</button>
+        <div class="results" id="res-mini"><div id="mini-det"></div><div class="summary" id="mini-sum"></div>
+            <div class="tkb"><h3>Данные для ТК</h3><div class="tk-wrap"><div class="tk-txt" id="mini-tk"></div><button class="btn btn-copy" onclick="cTK('mini-tk')">Скопировать</button></div></div></div>
+        <div class="wh">Склад отгрузки: <strong>Чебоксары</strong></div>
+    </div>
+
+    <!-- MAX -->
+    <div class="card tab-panel" id="panel-max" style="display:none">
+        <div class="fg"><label class="l">Площадь помещения (м²)</label>
+            <input type="number" id="max-area" placeholder="Например: 31" step="0.1" min="0.1">
+            <div class="hint" id="max-hint"></div></div>
+        <div class="fg"><label class="l">Количество пачек для доставки</label>
+            <input type="number" id="max-packs" placeholder="Кол-во пачек" step="1" min="1">
+            <div class="hint">1 пачка = 0,983 м² (15 шт) · 6,6 кг · Макс 10 рядов/паллет = 120 пачек</div></div>
+        <button class="btn btn-calc" onclick="calcMM('max')">Рассчитать</button>
+        <div class="results" id="res-max"><div id="max-det"></div><div class="summary" id="max-sum"></div>
+            <div class="tkb"><h3>Данные для ТК</h3><div class="tk-wrap"><div class="tk-txt" id="max-tk"></div><button class="btn btn-copy" onclick="cTK('max-tk')">Скопировать</button></div></div></div>
+        <div class="wh">Склад отгрузки: <strong>Чебоксары</strong></div>
+    </div>
+
+    <!-- STANDART -->
+    <div class="card tab-panel" id="panel-standart" style="display:none">
+        <div class="dual">
+            <div class="fg"><label class="l">Чёрная плитка (м²)</label>
+                <input type="number" id="std-black" placeholder="0" step="0.1" min="0">
+                <div class="hint">1,3 кг/шт</div></div>
+            <div class="fg"><label class="l">Цветная плитка (м²)</label>
+                <input type="number" id="std-color" placeholder="0" step="0.1" min="0">
+                <div class="hint">1,45 кг/шт</div></div>
+        </div>
+        <div class="hint" style="margin-bottom:16px">512×512 мм · 4 шт/м² · макс 100 м²/паллет · ДВП через 10 слоёв + дно</div>
+        <button class="btn btn-calc" onclick="calcStd()">Рассчитать</button>
+        <div class="results" id="res-standart"><div class="warn" id="std-warn"></div><div id="std-det"></div><div class="summary" id="std-sum"></div>
+            <div class="tkb"><h3>Данные для ТК</h3><div class="tk-wrap"><div class="tk-txt" id="std-tk"></div><button class="btn btn-copy" onclick="cTK('std-tk')">Скопировать</button></div></div></div>
+        <div class="wh">Склад отгрузки: <strong>Чебоксары</strong></div>
+    </div>
+
+    <!-- STREET -->
+    <div class="card tab-panel" id="panel-street" style="display:none">
+        <div class="fg"><label class="l">Площадь (м²)</label>
+            <input type="number" id="str-area" placeholder="Например: 50" step="0.1" min="0.1">
+            <div class="hint" id="str-hint">400×400 мм · 6,25 шт/м² · коробка 40 шт (6,4 м²) · макс 6 коробок/паллет = 38,4 м²</div></div>
+        <button class="btn btn-calc" onclick="calcStreet()">Рассчитать</button>
+        <div class="results" id="res-street">
+            <div class="rs"><h3>Плитка и упаковка</h3>
+                <div class="rw"><span class="lb">Плиток</span><span class="vl" id="st-tiles"></span></div>
+                <div class="rw"><span class="lb">Коробок (полных)</span><span class="vl" id="st-full"></span></div>
+                <div class="rw"><span class="lb">Коробок (неполных)</span><span class="vl" id="st-part"></span></div>
+                <div class="rw"><span class="lb">Всего коробок</span><span class="vl" id="st-total"></span></div>
+                <div class="rw"><span class="lb">Вес всех коробок</span><span class="vl" id="st-bw"></span></div>
+            </div>
+            <div id="str-det"></div><div class="summary" id="str-sum"></div>
+            <div class="tkb"><h3>Данные для ТК</h3><div class="tk-wrap"><div class="tk-txt" id="str-tk"></div><button class="btn btn-copy" onclick="cTK('str-tk')">Скопировать</button></div></div>
+        </div>
+        <div class="wh">Склад отгрузки: <strong>Тюмень</strong></div>
+    </div>
+
+    <!-- PREMIUM -->
+    <div class="card tab-panel" id="panel-premium" style="display:none">
+        <div class="fg"><label class="l">Тип плитки</label>
+            <div class="rr">
+                <label class="ro"><input type="radio" name="pt" value="gray" checked><span>Серая (рационал)</span></label>
+                <label class="ro"><input type="radio" name="pt" value="color"><span>Цветная + Чёрная</span></label></div></div>
+        <div class="fg"><label class="l">Толщина</label>
+            <div class="rr">
+                <label class="ro"><input type="radio" name="pk" value="4" checked><span>4 мм</span></label>
+                <label class="ro"><input type="radio" name="pk" value="5"><span>5 мм</span></label>
+                <label class="ro"><input type="radio" name="pk" value="7"><span>7 мм</span></label></div></div>
+        <div class="fg"><label class="l">Площадь (м²)</label>
+            <input type="number" id="prem-area" placeholder="Например: 50" step="0.1" min="0.1"></div>
+        <button class="btn btn-calc" onclick="calcPrem()">Рассчитать</button>
+        <div class="results" id="res-premium">
+            <div class="rs"><h3>Плитка и упаковка</h3>
+                <div class="rw"><span class="lb">Площадь</span><span class="vl" id="p-ar"></span></div>
+                <div class="rw"><span class="lb">Плиток</span><span class="vl" id="p-ti"></span></div>
+                <div class="rw"><span class="lb">Коробок</span><span class="vl" id="p-bx"></span></div>
+                <div class="rw"><span class="lb">Вес нетто</span><span class="vl" id="p-ne"></span></div>
+                <div class="rw"><span class="lb">Вес тары</span><span class="vl" id="p-ta"></span></div>
+                <div class="rw"><span class="lb">Вес брутто</span><span class="vl" id="p-br"></span></div></div>
+            <div id="prem-det"></div><div class="summary" id="prem-sum"></div>
+            <div class="tkb"><h3>Данные для ТК</h3><div class="tk-wrap"><div class="tk-txt" id="prem-tk"></div><button class="btn btn-copy" onclick="cTK('prem-tk')">Скопировать</button></div></div></div>
+        <div class="wh">Склад отгрузки: <strong>Стерлитамак</strong></div>
+    </div>
+</div>
+<div class="toast" id="toast">Скопировано!</div>
+
+<script>
+/* ═══ UTILS ═══ */
+function R(n,d){return n.toFixed(d).replace('.',',')}
+function toast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
+function cTK(id){const t=document.getElementById(id).textContent;navigator.clipboard.writeText(t).then(toast).catch(()=>{const r=document.createRange();r.selectNodeContents(document.getElementById(id));const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy');toast()})}
+
+function mkPalSec(contId,sumId,pals,title){
+    const c=document.getElementById(contId);c.innerHTML='';
+    const s=document.createElement('div');s.className='rs';
+    s.innerHTML='<h3>'+title+' ('+pals.length+' шт)</h3>';
+    pals.forEach(p=>{const d=document.createElement('div');d.className='pd';d.innerHTML=p.html;s.appendChild(d)});
+    c.appendChild(s);
+    const tV=pals.reduce((a,p)=>a+p.vol,0),tW=pals.reduce((a,p)=>a+p.weight,0);
+    document.getElementById(sumId).innerHTML=
+        '<div class="it"><div class="nm">'+pals.length+'</div><div class="ds">грузомест</div></div>'+
+        '<div class="it"><div class="nm">'+R(tV,4)+'</div><div class="ds">м³ объём</div></div>'+
+        '<div class="it"><div class="nm">'+R(tW,2)+'</div><div class="ds">кг вес</div></div>';
+    return{tV,tW};
+}
+
+function tkText(pals,pw,pd){
+    const L=[];
+    if(pals.length===1){const p=pals[0];L.push('габариты: '+R(pw,1)+'х'+R(pd,1)+'х'+R(p.height,4)+'м, объем: '+R(p.vol,4)+'м3, вес с палетом: '+R(p.weight,2)+'кг')}
+    else{pals.forEach((p,i)=>L.push('Паллет '+(i+1)+': габариты: '+R(pw,1)+'х'+R(pd,1)+'х'+R(p.height,4)+'м, объем: '+R(p.vol,4)+'м3, вес: '+R(p.weight,2)+'кг'));
+    const tV=pals.reduce((a,p)=>a+p.vol,0),tW=pals.reduce((a,p)=>a+p.weight,0);
+    L.push('Итого: '+pals.length+' мест, объём: '+R(tV,4)+'м3, вес: '+R(tW,2)+'кг')}
+    return L.join('\n');
+}
+
+/* ═══ TABS ═══ */
+const TN=['mini','max','standart','street','premium'];
+const TS={mini:'Mini 248×248 · Чебоксары',max:'MAX 268×268 · Чебоксары',standart:'Standart 500×500 · Чебоксары',street:'Street 400×400 · Тюмень',premium:'Premium 500×500 · Стерлитамак'};
+function switchTab(t){
+    document.querySelectorAll('#tabsBar .tab-btn').forEach((b,i)=>b.classList.toggle('active',TN[i]===t));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
+    document.getElementById('panel-'+t).style.display='';
+    document.querySelectorAll('.results').forEach(r=>r.classList.remove('visible'));
+    document.getElementById('hSub').textContent=TS[t];
+}
+
+/* ═══ MINI / MAX ═══ */
+const C={
+    mini:{pA:0.962948,pW:5.61,pH:0.085,pL:12,mR:10,pw:1.2,pd:0.8,plH:0.15,plW:20},
+    max: {pA:0.98304, pW:6.6, pH:0.09, pL:12,mR:10,pw:1.2,pd:0.8,plH:0.15,plW:20}
+};
+['mini','max'].forEach(t=>{
+    document.getElementById(t+'-area').addEventListener('input',function(){
+        const a=parseFloat(this.value),c=C[t],h=document.getElementById(t+'-hint');
+        if(a>0){const p=Math.ceil(a/c.pA);h.textContent='Рекомендуемое кол-во пачек: '+p;document.getElementById(t+'-packs').value=p}else h.textContent=''
+    });
+});
+function calcMM(t){
+    const c=C[t],packs=parseInt(document.getElementById(t+'-packs').value);
+    if(!packs||packs<=0){alert('Введите количество пачек');return}
+    const maxPP=c.mR*c.pL,palCnt=Math.ceil(packs/maxPP),pals=[];
+    let rem=packs;
+    for(let i=0;i<palCnt;i++){
+        const here=(i<palCnt-1)?Math.ceil(packs/palCnt):rem; rem-=here;
+        const rows=Math.ceil(here/c.pL),h=(here/c.pL*c.pH)+c.plH;
+        const v=c.pw*c.pd*h,w=here*c.pW+c.plW,m2=here*c.pA;
+        pals.push({height:h,vol:v,weight:w,
+            html:'<strong>Паллет #'+(i+1)+'</strong> — '+here+' пачек, '+rows+' рядов ('+R(m2,2)+' м²)'+
+                 '<br>Высота: '+R(h,4)+' м | Габариты: '+R(c.pw,1)+' × '+R(c.pd,1)+' × '+R(h,2)+' м'+
+                 '<br>Объём: '+R(v,4)+' м³ | Вес с паллетом: '+R(w,2)+' кг'});
+    }
+    mkPalSec(t+'-det',t+'-sum',pals,'Паллеты');
+    document.getElementById(t+'-tk').textContent=tkText(pals,c.pw,c.pd);
+    document.getElementById('res-'+t).classList.add('visible');
+}
+
+/* ═══ STANDART ═══ */
+const S={tT:0.005,dT:0.003,dI:10,tpL:4,wB:1.3,wC:1.45,pw:1.1,pd:1.1,plH:0.15,plW:20,maxM2:100};
+function stdPal(m2,wpt,lbl){
+    const tiles=Math.ceil(m2*4),layers=Math.ceil(tiles/S.tpL);
+    const dvp=Math.floor(layers/S.dI)+1;
+    const h=layers*S.tT+dvp*S.dT+S.plH,v=S.pw*S.pd*h;
+    const wN=tiles*wpt,w=wN+S.plW;
+    return{tiles,layers,dvp,height:h,vol:v,weight:w,m2:tiles*0.25,
+        html:'<strong>'+lbl+'</strong> — '+tiles+' плиток ('+R(tiles*0.25,1)+' м²), '+layers+' сл., '+dvp+' ДВП'+
+             '<br>Высота: '+R(h,4)+' м | Габариты: '+R(S.pw,1)+' × '+R(S.pd,1)+' × '+R(h,2)+' м'+
+             '<br>Объём: '+R(v,4)+' м³ | Вес с паллетом: '+R(w,2)+' кг'};
+}
+function splitStd(tot,wpt,cn){
+    const cnt=Math.ceil(tot/S.maxM2),pals=[];let rem=tot;
+    for(let i=0;i<cnt;i++){const here=Math.min(Math.ceil(tot/cnt),rem);rem-=here;pals.push(stdPal(here,wpt,'PH'))}
+    return pals;
+}
+function calcStd(){
+    const bM=parseFloat(document.getElementById('std-black').value)||0;
+    const cM=parseFloat(document.getElementById('std-color').value)||0;
+    if(bM<=0&&cM<=0){alert('Введите площадь');return}
+    const warn=document.getElementById('std-warn');
+    let all=[];
+    if(bM>0) all=all.concat(splitStd(bM,S.wB,'чёрная'));
+    if(cM>0) all=all.concat(splitStd(cM,S.wC,'цветная'));
+    // relabel
+    let bCnt=bM>0?Math.ceil(bM/S.maxM2):0;
+    all.forEach((p,i)=>{
+        const cn=i<bCnt?'чёрная':'цветная';
+        p.html='<strong>Паллет #'+(i+1)+' — '+cn+'</strong> — '+p.tiles+' плиток ('+R(p.m2,1)+' м²), '+p.layers+' сл., '+p.dvp+' ДВП'+
+               '<br>Высота: '+R(p.height,4)+' м | Габариты: '+R(S.pw,1)+' × '+R(S.pd,1)+' × '+R(p.height,2)+' м'+
+               '<br>Объём: '+R(p.vol,4)+' м³ | Вес с паллетом: '+R(p.weight,2)+' кг';
+    });
+    if(all.length>1){warn.textContent='⚠ Заказ распределён на '+all.length+' паллет(ов)';warn.classList.add('vis')}else warn.classList.remove('vis');
+    const det=document.getElementById('std-det');det.innerHTML='';
+    // order summary
+    const os=document.createElement('div');os.className='rs';let oh='<h3>Состав заказа</h3>';
+    if(bM>0){const bt=Math.ceil(bM*4);oh+='<div class="rw"><span class="lb">Чёрная</span><span class="vl">'+R(bM,1)+' м² · '+bt+' шт · '+R(bt*S.wB,2)+' кг</span></div>'}
+    if(cM>0){const ct=Math.ceil(cM*4);oh+='<div class="rw"><span class="lb">Цветная</span><span class="vl">'+R(cM,1)+' м² · '+ct+' шт · '+R(ct*S.wC,2)+' кг</span></div>'}
+    const aN=(bM>0?Math.ceil(bM*4)*S.wB:0)+(cM>0?Math.ceil(cM*4)*S.wC:0);
+    oh+='<div class="rw" style="border-top:1px solid #eee;margin-top:4px;padding-top:4px"><span class="lb"><strong>Итого нетто</strong></span><span class="vl">'+R(aN,2)+' кг</span></div>';
+    os.innerHTML=oh;det.appendChild(os);
+    const ps=document.createElement('div');ps.className='rs';ps.innerHTML='<h3>Паллеты ('+all.length+' шт)</h3>';
+    all.forEach(p=>{const d=document.createElement('div');d.className='pd';d.innerHTML=p.html;ps.appendChild(d)});
+    det.appendChild(ps);
+    const tV=all.reduce((a,p)=>a+p.vol,0),tW=all.reduce((a,p)=>a+p.weight,0);
+    document.getElementById('std-sum').innerHTML='<div class="it"><div class="nm">'+all.length+'</div><div class="ds">грузомест</div></div><div class="it"><div class="nm">'+R(tV,4)+'</div><div class="ds">м³ объём</div></div><div class="it"><div class="nm">'+R(tW,2)+'</div><div class="ds">кг вес</div></div>';
+    document.getElementById('std-tk').textContent=tkText(all,S.pw,S.pd);
+    document.getElementById('res-standart').classList.add('visible');
+}
+
+/* ═══ STREET ═══ */
+const ST={
+    tileW:0.55,          // кг/шт
+    tileArea:0.16,       // м² (0.4×0.4)
+    tilesPerM2:6.25,
+    boxTiles:40,         // шт в коробке
+    boxM2:6.4,           // м² в коробке (40/6.25)
+    boxWeight:22,        // кг полная коробка
+    boxW:0.42, boxL:0.42, boxH:0.72,  // габариты коробки
+    maxBoxPal:6,         // макс коробок на паллет
+    maxM2Pal:38.4,       // 6 × 6.4
+    palW:1.2, palD:0.8, palH:0.15,
+    palWeight:20
+};
+
+function calcStreet(){
+    const area=parseFloat(document.getElementById('str-area').value);
+    if(!area||area<=0){alert('Введите площадь');return}
+
+    const tilesNeeded=Math.ceil(area*ST.tilesPerM2);
+    // Расчёт коробок по формулам Excel (area-based)
+    const fullBoxes=Math.floor(area/ST.boxM2);               // W40: FLOOR(area/6.4, 1)
+    const partFraction=area/ST.boxM2 - fullBoxes;             // дробная часть коробки
+    const partBoxes=partFraction>0?1:0;                       // W42: IF(...)
+    const totalBoxes=fullBoxes+partBoxes;                     // W43
+    const partBoxWeight=partBoxes>0?(partFraction*ST.boxWeight):0;  // W41: fraction × 22
+    const totalBoxesWeight=fullBoxes*ST.boxWeight+(partBoxes>0?partBoxWeight:0); // W45
+
+    document.getElementById('st-tiles').textContent=tilesNeeded+' шт ('+R(tilesNeeded*ST.tileArea,2)+' м²)';
+    document.getElementById('st-full').textContent=fullBoxes+' шт × 22 кг = '+R(fullBoxes*22,2)+' кг';
+    document.getElementById('st-part').textContent=partBoxes>0?(partBoxes+' шт ('+R(partFraction*100,1)+'% коробки, '+R(partBoxWeight,2)+' кг)'):'нет';
+    document.getElementById('st-total').textContent=totalBoxes+' шт';
+    document.getElementById('st-bw').textContent=R(totalBoxesWeight,2)+' кг';
+
+    // Distribute boxes across pallets (max 6 per pallet)
+    // Excel: full pallets = FLOOR(area/38.4, 1), partial = remainder
+    const fullPallets=Math.floor(area/ST.maxM2Pal);           // W27
+    const palletRemainder=area/ST.maxM2Pal - fullPallets;
+    const partPallets=palletRemainder>0?1:0;                  // W28
+    const totalPallets=fullPallets+partPallets;               // W31
+
+    const pals=[];
+
+    // Full pallets (each has 6 full boxes)
+    for(let i=0;i<fullPallets;i++){
+        const wBoxes=ST.maxBoxPal*ST.boxWeight; // 6 × 22 = 132
+        const h=ST.boxH+ST.palH; // 0.72+0.15=0.87
+        const v=ST.palW*ST.palD*h;
+        const w=wBoxes+ST.palWeight; // 132+20=152
+        pals.push({height:h,vol:v,weight:w,boxes:ST.maxBoxPal,
+            html:'<strong>Паллет #'+(i+1)+'</strong> — '+ST.maxBoxPal+' коробок (полный, '+R(ST.maxM2Pal,1)+' м²)'+
+                 '<br>Высота: '+R(h,2)+' м | Габариты: '+R(ST.palW,1)+' × '+R(ST.palD,1)+' × '+R(h,2)+' м'+
+                 '<br>Объём: '+R(v,4)+' м³ | Вес с паллетом: '+R(w,2)+' кг'});
+    }
+
+    // Partial pallet (remaining boxes)
+    if(partPallets>0){
+        const remArea=area-fullPallets*ST.maxM2Pal;
+        const remBoxesFull=Math.floor(remArea/ST.boxM2);
+        const remFrac=remArea/ST.boxM2-remBoxesFull;
+        const remPartW=remFrac>0?(remFrac*ST.boxWeight):0;
+        const wBoxes=remBoxesFull*ST.boxWeight+remPartW;
+        // W29: (area/38.4 - fullPallets) * (maxBoxPal*22) + 20
+        // i.e. fraction of full pallet weight + pallet
+        const wExcel=palletRemainder*(ST.maxBoxPal*ST.boxWeight)+ST.palWeight;
+        const h=ST.boxH+ST.palH;
+        const v=ST.palW*ST.palD*h;
+        const remTotalBoxes=remBoxesFull+(remFrac>0?1:0);
+        const num=fullPallets+1;
+        pals.push({height:h,vol:v,weight:wExcel,boxes:remTotalBoxes,
+            html:'<strong>Паллет #'+num+'</strong> — '+remTotalBoxes+' коробок ('+R(remArea,2)+' м²)'+
+                 '<br>Высота: '+R(h,2)+' м | Габариты: '+R(ST.palW,1)+' × '+R(ST.palD,1)+' × '+R(h,2)+' м'+
+                 '<br>Объём: '+R(v,4)+' м³ | Вес с паллетом: '+R(wExcel,2)+' кг'});
+    }
+
+    mkPalSec('str-det','str-sum',pals,'Паллеты');
+    document.getElementById('str-tk').textContent=tkText(pals,ST.palW,ST.palD);
+    document.getElementById('res-street').classList.add('visible');
+}
+
+/* ═══ PREMIUM ═══ */
+const P={
+    d:{gray:{4:{w:3.62,b:3.5},5:{w:4.55,b:3.0},7:{w:6.10,b:2.5}},color:{4:{w:4.20,b:3.5},5:{w:5.30,b:3.0},7:{w:7.10,b:2.5}}},
+    bH:.074,bE:.416,bpL:4,pw:1.06,pl:1.06,pH:.10,pW:20,mB:64
+};
+function calcPrem(){
+    const area=parseFloat(document.getElementById('prem-area').value);
+    if(!area||area<=0){alert('Введите площадь');return}
+    const tp=document.querySelector('input[name="pt"]:checked').value;
+    const tk=document.querySelector('input[name="pk"]:checked').value;
+    const pp=P.d[tp][tk];
+    const tiles=Math.ceil(area/0.25),aA=tiles*0.25,wN=aA*pp.w;
+    const boxes=Math.ceil(aA/pp.b),tare=boxes*P.bE,brutto=wN+tare;
+    const wPB=(pp.b*pp.w)+P.bE;
+    document.getElementById('p-ar').textContent=R(aA,2)+' м² ('+tiles+' шт)';
+    document.getElementById('p-ti').textContent=tiles+' шт';
+    document.getElementById('p-bx').textContent=boxes+' шт';
+    document.getElementById('p-ne').textContent=R(wN,2)+' кг';
+    document.getElementById('p-ta').textContent=R(tare,2)+' кг';
+    document.getElementById('p-br').textContent=R(brutto,2)+' кг';
+    let pC,dist;
+    if(boxes<=P.mB){pC=1;dist=[boxes]}
+    else{pC=Math.ceil(boxes/P.mB);const b=Math.floor(boxes/pC),r=boxes%pC;dist=[];for(let i=0;i<pC;i++)dist.push(b+(i<r?1:0))}
+    const pals=[];
+    dist.forEach((bc,i)=>{
+        const layers=Math.ceil(bc/P.bpL),h=P.pH+(layers*P.bH);
+        const v=P.pw*P.pl*h,w=P.pW+(bc*wPB);
+        pals.push({height:h,vol:v,weight:w,
+            html:'<strong>Поддон #'+(i+1)+'</strong> — '+bc+' коробок, '+layers+' слоёв'+
+                 '<br>Высота: '+R(h*100,1)+' см | Габариты: '+R(P.pw,2)+' × '+R(P.pl,2)+' × '+R(h,2)+' м'+
+                 '<br>Объём: '+R(v,4)+' м³ | Вес: '+R(w,2)+' кг'});
+    });
+    mkPalSec('prem-det','prem-sum',pals,'Поддоны');
+    const L=[];
+    if(pals.length===1){const p=pals[0];L.push('габариты: '+R(P.pw,2)+'х'+R(P.pl,2)+'х'+R(p.height,2)+'м, объем: '+R(p.vol,4)+'м3, вес с палетом: '+R(p.weight,2)+'кг')}
+    else{pals.forEach((p,i)=>L.push('Поддон '+(i+1)+': габариты: '+R(P.pw,2)+'х'+R(P.pl,2)+'х'+R(p.height,2)+'м, объем: '+R(p.vol,4)+'м3, вес: '+R(p.weight,2)+'кг'));
+    const tV=pals.reduce((a,p)=>a+p.vol,0),tW=pals.reduce((a,p)=>a+p.weight,0);
+    L.push('Итого: '+pals.length+' мест, объём: '+R(tV,4)+'м3, вес: '+R(tW,2)+'кг')}
+    document.getElementById('prem-tk').textContent=L.join('\n');
+    document.getElementById('res-premium').classList.add('visible');
+}
+
+/* INIT */
+switchTab('mini');
+</script>
+</body>
+</html>
