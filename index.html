@@ -475,22 +475,65 @@ async function calcDelivery() {
         });
         const data = await resp.json();
 
-        let html = '<div style="margin-top:12px">';
-        html += '<table style="width:100%;border-collapse:collapse;font-size:14px">';
-        html += '<tr style="background:#f0f8ff"><th style="text-align:left;padding:8px;border-bottom:2px solid #2fc6f6">ТК</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">Цена</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">Срок</th><th style="text-align:left;padding:8px;border-bottom:2px solid #2fc6f6">Варианты</th></tr>';
+        // Filter out carriers with errors (unconfigured)
+        const ok = data.results.filter(r => !r.error);
+        if (ok.length === 0) {
+            resDiv.innerHTML = '<div style="color:#8d6e00;background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:12px;margin-top:12px">Не удалось получить цены. Попробуйте другой город.</div>';
+            return;
+        }
 
-        data.results.forEach(r => {
-            if (r.error) {
-                html += '<tr><td style="padding:8px;border-bottom:1px solid #eee"><strong>' + r.carrier + '</strong></td><td colspan="3" style="padding:8px;border-bottom:1px solid #eee;color:#999">' + r.error + '</td></tr>';
-                return;
+        // Sort by price (cheapest first)
+        ok.sort((a, b) => (a.price || 999999) - (b.price || 999999));
+
+        // Best option banner
+        const best = ok[0];
+        let bestName = best.carrier;
+        const bestOption = (best.delivery_types || []).find(o => o.price === best.price);
+        if (bestOption && bestOption.restriction) bestName += ' ' + bestOption.restriction.split('—')[0].replace(/[()]/g,'').trim();
+
+        let html = '<div style="margin-top:12px">';
+        html += '<div style="background:#e8f8e0;border:1px solid #b5e0a0;border-radius:4px;padding:14px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
+        html += '<div><div style="font-size:11px;color:#5a8a3c;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Самая выгодная</div>';
+        html += '<div style="font-size:18px;font-weight:700;color:#333;margin-top:2px">' + bestName + '</div></div>';
+        html += '<div style="text-align:right"><div style="font-size:24px;font-weight:700;color:#2a7a0a">' + best.price + ' ₽</div>';
+        html += '<div style="font-size:12px;color:#5a8a3c">' + (best.days_min ? best.days_min + '-' + best.days_max + ' дней' : '') + '</div></div></div>';
+
+        // Comparison table (one row per carrier, best price only)
+        html += '<table style="width:100%;border-collapse:collapse;font-size:14px">';
+        html += '<tr style="background:#f0f8ff"><th style="text-align:left;padding:8px;border-bottom:2px solid #2fc6f6">ТК</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">До терминала</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">До двери</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">Срок</th><th style="padding:8px;border-bottom:2px solid #2fc6f6"></th></tr>';
+
+        ok.forEach((r, idx) => {
+            const types = r.delivery_types || [];
+            const terminal = types.find(o => o.type === 'terminal' && o.price);
+            const door = types.find(o => o.type === 'door' && o.price);
+            const isBest = idx === 0;
+            const bg = isBest ? 'background:#f0fbe8;' : '';
+
+            html += '<tr style="' + bg + '">';
+            html += '<td style="padding:10px 8px;border-bottom:1px solid #eee"><strong>' + r.carrier + '</strong></td>';
+            html += '<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:' + (isBest ? '#2a7a0a' : '#333') + '">' + (terminal ? terminal.price + '₽' : '-') + '</td>';
+            html += '<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center">' + (door ? door.price + '₽' : '-') + '</td>';
+            html += '<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center">' + (r.days_min ? r.days_min + '-' + r.days_max + ' дн.' : '-') + '</td>';
+
+            // Expand button for carriers with multiple options
+            const extraOptions = types.filter(o => o.price && o !== terminal && o !== door);
+            if (extraOptions.length > 0) {
+                const detId = 'del-det-' + idx;
+                html += '<td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center"><a href="#" onclick="document.getElementById(\'' + detId + '\').style.display=document.getElementById(\'' + detId + '\').style.display===\'none\'?\'table-row\':\'none\';return false" style="font-size:12px;color:#2fc6f6;text-decoration:none">ещё ' + extraOptions.length + '</a></td>';
+            } else {
+                html += '<td style="padding:10px 8px;border-bottom:1px solid #eee"></td>';
             }
-            const options = (r.delivery_types || []).filter(o => o.price).map(o =>
-                '<div style="font-size:12px;color:#525c69;margin:2px 0">' + o.type.replace('terminal','Терминал').replace('door','До двери').replace('pvz','ПВЗ') + ': <strong>' + (o.price || '-') + '₽</strong> ' + (o.restriction || '') + '</div>'
-            ).join('');
-            html += '<tr><td style="padding:8px;border-bottom:1px solid #eee"><strong>' + r.carrier + '</strong></td>';
-            html += '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#333">' + (r.price ? r.price + '₽' : '-') + '</td>';
-            html += '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center">' + (r.days_min ? r.days_min + '-' + r.days_max + ' дн.' : '-') + '</td>';
-            html += '<td style="padding:8px;border-bottom:1px solid #eee">' + options + '</td></tr>';
+            html += '</tr>';
+
+            // Hidden detail row
+            if (extraOptions.length > 0) {
+                const detId = 'del-det-' + idx;
+                html += '<tr id="' + detId + '" style="display:none"><td colspan="5" style="padding:6px 8px 12px 24px;border-bottom:1px solid #eee;background:#fafbfc">';
+                extraOptions.forEach(o => {
+                    html += '<div style="font-size:12px;color:#525c69;margin:3px 0">' + (o.restriction || o.type) + ': <strong>' + o.price + '₽</strong></div>';
+                });
+                html += '</td></tr>';
+            }
         });
 
         html += '</table>';
