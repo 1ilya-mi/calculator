@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Калькулятор доставки плитки</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Open Sans','Helvetica Neue',Arial,sans-serif;background:#f5f7f8;color:#333;line-height:1.5;padding:16px;min-height:100vh}
@@ -172,6 +174,14 @@
     </div>
     <button class="btn btn-calc" id="del-btn" onclick="calcDelivery()" style="background:#2fc6f6;color:#fff;margin-top:4px">🚚 Рассчитать доставку</button>
     <div id="del-results"></div>
+    <div id="del-map-wrap" style="display:none;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="font-size:13px;font-weight:700;color:#525c69">📍 Пункты выдачи и терминалы</h3>
+            <div style="font-size:11px;color:#959ca4"><span style="color:#e74c3c">●</span> Терминал &nbsp; <span style="color:#3498db">●</span> ПВЗ</div>
+        </div>
+        <div id="del-map" style="height:400px;border-radius:4px;border:1px solid #e0e2e4"></div>
+        <div id="del-map-info" style="font-size:12px;color:#959ca4;margin-top:6px"></div>
+    </div>
 </div>
 
 <div class="toast" id="toast">Скопировано!</div>
@@ -541,11 +551,85 @@ async function calcDelivery() {
         html += '</div>';
 
         resDiv.innerHTML = html;
+
+        // Load map with terminals/PVZ
+        loadDeliveryMap(city);
     } catch (e) {
         resDiv.innerHTML = '<div style="color:red;margin-top:8px">Ошибка: ' + e.message + '</div>';
     } finally {
         btn.textContent = '🚚 Рассчитать доставку';
         btn.disabled = false;
+    }
+}
+
+/* ═══ DELIVERY MAP ═══ */
+const TERMINALS_API = 'https://n8n.rockforma.ru/delivery/delivery/terminals';
+let deliveryMap = null;
+
+async function loadDeliveryMap(city) {
+    const wrap = document.getElementById('del-map-wrap');
+    const info = document.getElementById('del-map-info');
+
+    try {
+        const resp = await fetch(TERMINALS_API + '?city=' + encodeURIComponent(city));
+        const data = await resp.json();
+
+        if (!data.points || data.points.length === 0) {
+            wrap.style.display = 'none';
+            return;
+        }
+
+        wrap.style.display = 'block';
+
+        // Init or reset map
+        if (deliveryMap) {
+            deliveryMap.remove();
+        }
+        deliveryMap = L.map('del-map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18,
+        }).addTo(deliveryMap);
+
+        const bounds = [];
+        let termCount = 0, pvzCount = 0;
+
+        data.points.forEach(p => {
+            if (!p.lat || !p.lon) return;
+
+            const isTerminal = p.type === 'terminal';
+            const color = isTerminal ? '#e74c3c' : '#3498db';
+            const radius = isTerminal ? 8 : 5;
+            const label = p.name + (p.address ? '\n' + p.address : '');
+
+            const marker = L.circleMarker([p.lat, p.lon], {
+                radius: radius,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 0.9,
+            }).addTo(deliveryMap);
+
+            marker.bindPopup(
+                '<strong>' + p.name + '</strong>' +
+                (p.address ? '<br>' + p.address : '') +
+                '<br><span style="color:' + color + '">' + (isTerminal ? 'Терминал' : 'Пункт выдачи') + '</span>' +
+                '<br><small>' + p.carrier + '</small>'
+            );
+
+            bounds.push([p.lat, p.lon]);
+            if (isTerminal) termCount++; else pvzCount++;
+        });
+
+        if (bounds.length > 0) {
+            deliveryMap.fitBounds(bounds, { padding: [20, 20] });
+        }
+
+        info.textContent = city + ': ' + termCount + ' терминалов, ' + pvzCount + ' пунктов выдачи';
+
+    } catch (e) {
+        wrap.style.display = 'none';
+        console.error('Map error:', e);
     }
 }
 
