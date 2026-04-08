@@ -162,6 +162,18 @@
         <div class="wh">Склад отгрузки: <strong>Стерлитамак</strong></div>
     </div>
 </div>
+<!-- DELIVERY SECTION -->
+<div class="card" id="delivery-section" style="margin-top:4px">
+    <h3 style="font-size:14px;font-weight:700;color:#525c69;margin-bottom:12px">🚚 Расчёт доставки</h3>
+    <div class="fg">
+        <label class="l">Город доставки</label>
+        <input type="text" id="del-city" placeholder="Например: Москва, Краснодар, Астрахань" style="width:100%;padding:10px 12px;border:1px solid #e0e2e4;border-radius:4px;font-family:inherit;font-size:14px;color:#333">
+        <div class="hint">Сначала рассчитайте плитку выше, затем введите город</div>
+    </div>
+    <button class="btn btn-calc" id="del-btn" onclick="calcDelivery()" style="background:#2fc6f6;color:#fff;margin-top:4px">🚚 Рассчитать доставку</button>
+    <div id="del-results"></div>
+</div>
+
 <div class="toast" id="toast">Скопировано!</div>
 
 <script>
@@ -405,6 +417,93 @@ function calcPrem(){
     L.push('Итого: '+pals.length+' мест, объём: '+R(tV,4)+'м3, вес: '+R(tW,2)+'кг')}
     document.getElementById('prem-tk').textContent=L.join('\n');
     document.getElementById('res-premium').classList.add('visible');
+}
+
+/* ═══ DELIVERY CALCULATOR ═══ */
+const DELIVERY_API = 'https://n8n.rockforma.ru/delivery/delivery/calculate';
+
+async function calcDelivery() {
+    const cityInput = document.getElementById('del-city');
+    const city = cityInput.value.trim();
+    if (!city) { alert('Введите город доставки'); return; }
+
+    // Collect cargo data from current tab results
+    const activePanel = document.querySelector('.tab-panel:not([style*="none"])');
+    if (!activePanel) { alert('Сначала рассчитайте плитку'); return; }
+
+    const sumEl = activePanel.querySelector('.summary');
+    if (!sumEl) { alert('Сначала нажмите "Рассчитать"'); return; }
+
+    // Parse weight and volume from summary or pallet details
+    let totalWeight = 0, totalVolume = 0, palletCount = 0;
+    const palDets = activePanel.querySelectorAll('.pd');
+    palDets.forEach(pd => {
+        const text = pd.textContent;
+        const wMatch = text.match(/Вес[^:]*:\s*([\d.,]+)\s*кг/i);
+        const vMatch = text.match(/Объём[^:]*:\s*([\d.,]+)\s*м/i);
+        if (wMatch) totalWeight += parseFloat(wMatch[1].replace(',','.'));
+        if (vMatch) totalVolume += parseFloat(vMatch[1].replace(',','.'));
+        palletCount++;
+    });
+
+    if (totalWeight <= 0) {
+        // Fallback: try summary numbers
+        const nums = sumEl.querySelectorAll('.nm');
+        if (nums.length >= 3) {
+            totalWeight = parseFloat(nums[nums.length-1].textContent) || 100;
+            totalVolume = 0.4;
+        }
+    }
+    if (totalWeight <= 0) { alert('Не удалось определить вес груза'); return; }
+
+    const btn = document.getElementById('del-btn');
+    const resDiv = document.getElementById('del-results');
+    btn.textContent = 'Загрузка...';
+    btn.disabled = true;
+    resDiv.innerHTML = '';
+
+    try {
+        const resp = await fetch(DELIVERY_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                city_to: city,
+                weight_kg: Math.round(totalWeight * 100) / 100,
+                volume_m3: Math.round(totalVolume * 10000) / 10000,
+                pallet_count: palletCount || 1,
+            }),
+        });
+        const data = await resp.json();
+
+        let html = '<div style="margin-top:12px">';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:14px">';
+        html += '<tr style="background:#f0f8ff"><th style="text-align:left;padding:8px;border-bottom:2px solid #2fc6f6">ТК</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">Цена</th><th style="padding:8px;border-bottom:2px solid #2fc6f6">Срок</th><th style="text-align:left;padding:8px;border-bottom:2px solid #2fc6f6">Варианты</th></tr>';
+
+        data.results.forEach(r => {
+            if (r.error) {
+                html += '<tr><td style="padding:8px;border-bottom:1px solid #eee"><strong>' + r.carrier + '</strong></td><td colspan="3" style="padding:8px;border-bottom:1px solid #eee;color:#999">' + r.error + '</td></tr>';
+                return;
+            }
+            const options = (r.delivery_types || []).filter(o => o.price).map(o =>
+                '<div style="font-size:12px;color:#525c69;margin:2px 0">' + o.type.replace('terminal','Терминал').replace('door','До двери').replace('pvz','ПВЗ') + ': <strong>' + (o.price || '-') + '₽</strong> ' + (o.restriction || '') + '</div>'
+            ).join('');
+            html += '<tr><td style="padding:8px;border-bottom:1px solid #eee"><strong>' + r.carrier + '</strong></td>';
+            html += '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:#333">' + (r.price ? r.price + '₽' : '-') + '</td>';
+            html += '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center">' + (r.days_min ? r.days_min + '-' + r.days_max + ' дн.' : '-') + '</td>';
+            html += '<td style="padding:8px;border-bottom:1px solid #eee">' + options + '</td></tr>';
+        });
+
+        html += '</table>';
+        html += '<div style="font-size:11px;color:#959ca4;margin-top:8px">Груз: ' + totalWeight.toFixed(1) + ' кг, ' + totalVolume.toFixed(4) + ' м³, ' + (palletCount||1) + ' мест. Из Чебоксар → ' + city + '</div>';
+        html += '</div>';
+
+        resDiv.innerHTML = html;
+    } catch (e) {
+        resDiv.innerHTML = '<div style="color:red;margin-top:8px">Ошибка: ' + e.message + '</div>';
+    } finally {
+        btn.textContent = '🚚 Рассчитать доставку';
+        btn.disabled = false;
+    }
 }
 
 /* INIT */
